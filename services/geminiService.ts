@@ -37,11 +37,27 @@ export const fetchMarketSentiment = async (): Promise<SentimentData> => {
             }`,
             config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" }
         });
+        
         const text = response.text || "{}";
-        try { return JSON.parse(text) as SentimentData; } catch (e) {
+        let parsed: any = {};
+        
+        try { 
+            parsed = JSON.parse(text); 
+        } catch (e) {
              const cleanText = text.replace(/```json/g, '').replace(/```/g, '');
-             return JSON.parse(cleanText) as SentimentData;
+             try { parsed = JSON.parse(cleanText); } catch (e2) { parsed = {}; }
         }
+
+        // Safety check: parsed can be null if text is "null", causing crash on access
+        if (!parsed || typeof parsed !== 'object') {
+            parsed = {};
+        }
+
+        return {
+            sentiment: parsed.sentiment || "Neutral",
+            summary: parsed.summary || "Unable to fetch detailed summary.",
+            keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : []
+        };
     } catch (e) {
         console.error("Sentiment fetch failed", e);
         return { sentiment: "Neutral", summary: "Error fetching data.", keyPoints: [] };
@@ -92,7 +108,15 @@ export const analyzeChartImage = async (files: { file15m?: File, file1h?: File }
   });
 
   const text = response.text || "{}";
-  const jsonResult = JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''));
+  let jsonResult: any = {};
+  try {
+      jsonResult = JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''));
+  } catch(e) {
+      console.error("Failed to parse analysis result");
+  }
+
+  // Handle null result from JSON.parse
+  if (!jsonResult || typeof jsonResult !== 'object') jsonResult = {};
 
   return {
     fileName: "Combined Analysis",

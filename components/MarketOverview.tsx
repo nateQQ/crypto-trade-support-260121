@@ -60,12 +60,20 @@ export const MarketOverview: React.FC = () => {
             fetchWatchlistCoins(),
             fetchMarketSentiment()
         ]);
-        setTopCoins(top);
-        setWatchlist(watch);
+        
+        // Ensure we always set arrays, falling back to empty arrays if undefined
+        setTopCoins(Array.isArray(top) ? top : []);
+        setWatchlist(Array.isArray(watch) ? watch : []);
         setSentiment(sent);
-        if (watch.length > 0) setSelectedCoinId(watch[0].id);
+        
+        if (Array.isArray(watch) && watch.length > 0) {
+            setSelectedCoinId(watch[0].id);
+        }
       } catch (error) {
         console.error("Failed to load market data", error);
+        // Fallback to empty states in worst-case
+        setTopCoins([]);
+        setWatchlist([]);
       } finally {
         setLoading(false);
       }
@@ -73,8 +81,11 @@ export const MarketOverview: React.FC = () => {
     loadData();
   }, []);
 
-  const upCount = topCoins.filter(c => c.price_change_percentage_24h >= 0).length;
-  const downCount = topCoins.length - upCount;
+  const safeTopCoins = Array.isArray(topCoins) ? topCoins : [];
+  const safeWatchlist = Array.isArray(watchlist) ? watchlist : [];
+  
+  const upCount = safeTopCoins.filter(c => c.price_change_percentage_24h >= 0).length;
+  const downCount = safeTopCoins.length - upCount;
 
   if (loading) {
     return (
@@ -110,12 +121,16 @@ export const MarketOverview: React.FC = () => {
                     <div className="space-y-4">
                         <p className="text-lg text-gray-200 leading-relaxed">{sentiment.summary}</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pt-4 border-t border-gray-700/50">
-                            {sentiment.keyPoints.map((point, idx) => (
-                                <li key={idx} className="flex items-start text-sm text-gray-300">
-                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
-                                    {point}
-                                </li>
-                            ))}
+                            {Array.isArray(sentiment.keyPoints) && sentiment.keyPoints.length > 0 ? (
+                                sentiment.keyPoints.map((point, idx) => (
+                                    <li key={idx} className="flex items-start text-sm text-gray-300">
+                                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                                        {point}
+                                    </li>
+                                ))
+                            ) : (
+                                <p className="text-gray-500 text-sm italic col-span-2">No key developments available.</p>
+                            )}
                         </div>
                     </div>
                 ) : <p className="text-gray-400 text-sm">Sentiment analysis unavailable.</p>}
@@ -127,9 +142,13 @@ export const MarketOverview: React.FC = () => {
         <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col h-[400px]">
           <h2 className="text-lg font-bold text-white mb-4">Watchlist</h2>
           <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
-            {watchlist.map(coin => (
-              <CoinRow key={coin.id} coin={coin} isSelected={selectedCoinId === coin.id} onSelect={c => setSelectedCoinId(c.id)} />
-            ))}
+            {safeWatchlist.length > 0 ? (
+              safeWatchlist.map(coin => (
+                <CoinRow key={coin.id} coin={coin} isSelected={selectedCoinId === coin.id} onSelect={c => setSelectedCoinId(c.id)} />
+              ))
+            ) : (
+              <p className="text-gray-500 text-center mt-10">No watchlist data available</p>
+            )}
           </div>
         </div>
 
@@ -142,7 +161,11 @@ export const MarketOverview: React.FC = () => {
               </div>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
-            {topCoins.map(coin => <CoinRow key={coin.id} coin={coin} isSelected={false} onSelect={() => {}} />)}
+            {safeTopCoins.length > 0 ? (
+               safeTopCoins.map(coin => <CoinRow key={coin.id} coin={coin} isSelected={false} onSelect={() => {}} />)
+            ) : (
+              <p className="text-gray-500 text-center mt-10">No market data available</p>
+            )}
           </div>
         </div>
       </div>
