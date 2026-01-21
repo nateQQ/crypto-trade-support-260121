@@ -1,0 +1,5 @@
+{
+  "name": "CryptoTrade AI Support",
+  "description": "Daily trading support application analyzing market trends and technical charts (MACD) for SUI, SOL, BERA, and top coins.",
+  "requestFramePermissions": []
+}
