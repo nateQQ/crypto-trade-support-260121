@@ -13,21 +13,21 @@ const App: React.FC = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
            <h1 className="text-3xl font-bold text-white mb-2">Daily Trading Dashboard</h1>
-           <p className="text-gray-400">Monitor trends for SUI, SOL, BERA and analyze Binance charts for MACD setups.</p>
+           <p className="text-gray-400">Advanced MACD Analysis & Market Intelligence</p>
         </div>
 
-        {/* Top Section: Data & Sentiment */}
-        <section className="mb-10">
-          <MarketOverview />
-        </section>
-
-        {/* Core Feature: Image Analysis */}
-        <section>
-          <div className="flex items-center space-x-2 mb-4">
+        {/* Core Feature: Image Analysis moved to Top */}
+        <section className="mb-12">
+          <div className="flex items-center space-x-2 mb-6">
              <div className="h-8 w-1 bg-blue-500 rounded-full"></div>
              <h2 className="text-2xl font-bold text-white">Technical Analysis Engine</h2>
           </div>
           <ChartAnalyzer />
+        </section>
+
+        {/* Data & Sentiment moved below */}
+        <section className="mb-10">
+          <MarketOverview />
         </section>
       </main>
 

@@ -9,13 +9,11 @@ const getAiClient = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
-// Helper to convert file to base64
 const fileToGenerativePart = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result as string;
-      // Remove data url prefix (e.g. "data:image/jpeg;base64,")
       const base64Data = base64String.split(',')[1];
       resolve(base64Data);
     };
@@ -28,116 +26,76 @@ export const fetchMarketSentiment = async (): Promise<SentimentData> => {
     try {
         const ai = getAiClient();
         const model = 'gemini-3-flash-preview'; 
-        
         const response = await ai.models.generateContent({
             model,
             contents: `Search for the latest crypto market sentiment from major sources like CoinMarketCap news and "Thuan Capital" youtube channel updates. 
-            
-            Return a JSON object with the following structure:
+            Return a JSON object:
             {
                 "sentiment": "Bullish" | "Bearish" | "Neutral",
-                "summary": "A concise summary of the market mood (max 2-3 sentences).",
-                "keyPoints": ["Key point 1", "Key point 2", "Key point 3"]
+                "summary": "Concise summary.",
+                "keyPoints": ["Point 1", "Point 2", "Point 3"]
             }`,
-            config: {
-                tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json"
-            }
+            config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" }
         });
-
         const text = response.text || "{}";
-        // Parse JSON
-        try {
-             return JSON.parse(text) as SentimentData;
-        } catch (e) {
+        try { return JSON.parse(text) as SentimentData; } catch (e) {
              const cleanText = text.replace(/```json/g, '').replace(/```/g, '');
              return JSON.parse(cleanText) as SentimentData;
         }
     } catch (e) {
         console.error("Sentiment fetch failed", e);
-        return {
-            sentiment: "Neutral",
-            summary: "Unable to fetch sentiment data due to an error.",
-            keyPoints: []
-        };
+        return { sentiment: "Neutral", summary: "Error fetching data.", keyPoints: [] };
     }
 };
 
-export const analyzeChartImage = async (file: File, additionalContext: string): Promise<AnalysisResult> => {
+export const analyzeChartImage = async (files: { file15m?: File, file1h?: File }, additionalContext: string): Promise<AnalysisResult> => {
   const ai = getAiClient();
-  const base64Data = await fileToGenerativePart(file);
+  const model = "gemini-flash-latest";
+  const parts: any[] = [];
 
-  // Using gemini-2.5-flash-latest for multimodal capability (vision + reasoning)
-  const model = "gemini-flash-latest"; 
+  if (files.file15m) {
+    const data = await fileToGenerativePart(files.file15m);
+    parts.push({ inlineData: { mimeType: files.file15m.type, data }, text: "This is the 15-minute chart." });
+  }
+  if (files.file1h) {
+    const data = await fileToGenerativePart(files.file1h);
+    parts.push({ inlineData: { mimeType: files.file1h.type, data }, text: "This is the 1-hour chart." });
+  }
 
   const prompt = `
-    You are an expert technical analyst for cryptocurrency trading.
-    Analyze this chart screenshot (likely Binance). 
+    You are an expert technical analyst. Compare and contrast the provided 15m and 1h charts.
     
-    CRITICAL INSTRUCTION:
-    Focus specifically on the MACD indicator (12, 26, 9) at the bottom of the chart.
+    CRITICAL STRATEGY:
+    - Look for MACD (12, 26, 9) "second half red zone" pattern (bars shortening in negative territory).
+    - Use the 1h chart for major trend confirmation and the 15m chart for precise entry timing.
+    - If BOTH charts show the pattern, it is a high-confidence signal.
     
-    THE TRADING STRATEGY:
-    - We are looking for a specific pattern: "MACD entering the second half of the red zone".
-    - This means the MACD histogram bars are red (negative) but are starting to get shorter (lighter color in some themes), indicating bearish momentum is weakening and a potential reversal to the upside is coming.
-    - If this pattern is detected on a 15-minute or 1-hour timeframe, it is a strong signal for a LONG position.
-    
-    TASK:
-    1. Identify the coin symbol and timeframe from the image if possible.
-    2. Analyze the price trend.
-    3. Analyze the MACD histogram state closely.
-    4. Provide a trading recommendation based on the strategy above.
-    
-    CONTEXT PROVIDED BY USER:
-    "${additionalContext}"
-
-    OUTPUT FORMAT:
-    Return valid JSON adhering to this schema:
+    OUTPUT FORMAT (JSON):
     {
       "trend": "UP" | "DOWN" | "NEUTRAL",
       "direction": "LONG" | "SHORT" | "WAIT",
-      "entryPrice": "Suggest specific price or 'Current Market Price'",
-      "targetPrice": "Suggest specific target based on resistance",
-      "stopLoss": "Suggest stop loss based on recent support",
-      "pnlProjection": "Estimated Risk/Reward ratio (e.g., 1:3)",
-      "reasoning": "Detailed technical analysis explanation focusing on MACD",
+      "entryPrice": "Specific price",
+      "targetPrice": "Specific target",
+      "stopLoss": "Specific stop loss",
+      "pnlProjection": "Risk/Reward ratio",
+      "reasoning": "Synthesis of both timeframes",
       "confidence": "High" | "Medium" | "Low",
-      "macdStatus": "Describe the specific look of the MACD histogram"
+      "macdStatus": "Summary of MACD across both timeframes"
     }
   `;
+  parts.push({ text: prompt + "\nContext: " + additionalContext });
 
   const response = await ai.models.generateContent({
-    model: model,
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            mimeType: file.type,
-            data: base64Data
-          }
-        },
-        { text: prompt }
-      ]
-    },
-    config: {
-      responseMimeType: "application/json",
-      // We can define a schema but the prompt instructions are usually sufficient for Flash 2.5/Pro 3
-      // Let's use loose JSON parsing for robustness
-    }
+    model,
+    contents: { parts },
+    config: { responseMimeType: "application/json" }
   });
 
   const text = response.text || "{}";
-  let jsonResult;
-  try {
-    jsonResult = JSON.parse(text);
-  } catch (e) {
-    // Fallback if markdown fence is included
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '');
-    jsonResult = JSON.parse(cleanText);
-  }
+  const jsonResult = JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''));
 
   return {
-    fileName: file.name,
+    fileName: "Combined Analysis",
     timestamp: new Date().toISOString(),
     recommendation: {
       trend: jsonResult.trend as AnalysisTrend || AnalysisTrend.NEUTRAL,
@@ -146,7 +104,7 @@ export const analyzeChartImage = async (file: File, additionalContext: string): 
       targetPrice: jsonResult.targetPrice || "N/A",
       stopLoss: jsonResult.stopLoss || "N/A",
       pnlProjection: jsonResult.pnlProjection || "N/A",
-      reasoning: jsonResult.reasoning || "Analysis failed to produce reasoning.",
+      reasoning: jsonResult.reasoning || "No reasoning provided.",
       confidence: jsonResult.confidence || "Low",
       macdStatus: jsonResult.macdStatus || "Unknown"
     }

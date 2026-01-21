@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MarketCoin, SentimentData } from '../types';
 import { fetchTopCoins, fetchWatchlistCoins } from '../services/marketService';
 import { fetchMarketSentiment } from '../services/geminiService';
-import { TrendingUp, TrendingDown, Loader2, Info, Newspaper, Check } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2, Newspaper, Check, BarChart3 } from 'lucide-react';
 
 interface CoinRowProps {
   coin: MarketCoin;
@@ -63,11 +63,7 @@ export const MarketOverview: React.FC = () => {
         setTopCoins(top);
         setWatchlist(watch);
         setSentiment(sent);
-        
-        // Auto-select first item in watchlist if available
-        if (watch.length > 0) {
-            setSelectedCoinId(watch[0].id);
-        }
+        if (watch.length > 0) setSelectedCoinId(watch[0].id);
       } catch (error) {
         console.error("Failed to load market data", error);
       } finally {
@@ -77,9 +73,8 @@ export const MarketOverview: React.FC = () => {
     loadData();
   }, []);
 
-  const handleSelectCoin = (coin: MarketCoin) => {
-      setSelectedCoinId(coin.id);
-  };
+  const upCount = topCoins.filter(c => c.price_change_percentage_24h >= 0).length;
+  const downCount = topCoins.length - upCount;
 
   if (loading) {
     return (
@@ -91,13 +86,13 @@ export const MarketOverview: React.FC = () => {
 
   return (
     <div className="flex flex-col space-y-8">
-      {/* Sentiment Section - Expanded */}
+      {/* Sentiment Section */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 overflow-hidden shadow-lg">
         <div className="p-6">
             <div className="flex items-start justify-between mb-4">
                 <h2 className="text-xl font-bold text-white flex items-center">
                     <Newspaper className="w-6 h-6 mr-3 text-blue-400" />
-                    Market Sentiment & Trend Analysis
+                    Market Sentiment
                 </h2>
                 {sentiment && (
                     <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider ${
@@ -110,77 +105,44 @@ export const MarketOverview: React.FC = () => {
                 )}
             </div>
             
-            <div className="bg-gray-900/40 rounded-xl p-5 border border-gray-700/50 backdrop-blur-sm">
+            <div className="bg-gray-900/40 rounded-xl p-5 border border-gray-700/50">
                 {sentiment ? (
                     <div className="space-y-4">
-                        <p className="text-lg text-gray-200 leading-relaxed font-light">
-                            {sentiment.summary}
-                        </p>
-                        
-                        {sentiment.keyPoints && sentiment.keyPoints.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-gray-700/50">
-                                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Key Developments</h3>
-                                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {sentiment.keyPoints.map((point, idx) => (
-                                        <li key={idx} className="flex items-start text-sm text-gray-300">
-                                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
-                                            {point}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                        <p className="text-xs text-gray-500 mt-2 text-right italic">
-                            Sources: CoinMarketCap, Thuan Capital, Google Search
-                        </p>
+                        <p className="text-lg text-gray-200 leading-relaxed">{sentiment.summary}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pt-4 border-t border-gray-700/50">
+                            {sentiment.keyPoints.map((point, idx) => (
+                                <li key={idx} className="flex items-start text-sm text-gray-300">
+                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                                    {point}
+                                </li>
+                            ))}
+                        </div>
                     </div>
-                ) : (
-                    <p className="text-gray-400">Unable to load sentiment data.</p>
-                )}
+                ) : <p className="text-gray-400 text-sm">Sentiment analysis unavailable.</p>}
             </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Watchlist */}
-        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col h-full">
-          <div className="mb-4">
-              <h2 className="text-lg font-bold text-white">Your Watchlist (Select Active Trade)</h2>
-              <p className="text-xs text-gray-400 mt-1">Select a coin to focus analysis context.</p>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-1">
-            {watchlist.length > 0 ? (
-              watchlist.map(coin => (
-                  <CoinRow 
-                    key={coin.id} 
-                    coin={coin} 
-                    isSelected={selectedCoinId === coin.id}
-                    onSelect={handleSelectCoin}
-                  />
-              ))
-            ) : (
-              <p className="text-gray-500 text-sm">No watchlist data available.</p>
-            )}
+        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col h-[400px]">
+          <h2 className="text-lg font-bold text-white mb-4">Watchlist</h2>
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
+            {watchlist.map(coin => (
+              <CoinRow key={coin.id} coin={coin} isSelected={selectedCoinId === coin.id} onSelect={c => setSelectedCoinId(c.id)} />
+            ))}
           </div>
         </div>
 
-        {/* Top 10 Market */}
-        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 h-full">
-          <h2 className="text-lg font-bold text-white mb-4">Top 10 Market Trend</h2>
-          <div className="flex flex-col space-y-1">
-            {topCoins.length > 0 ? (
-               topCoins.map(coin => (
-                   <CoinRow 
-                        key={coin.id} 
-                        coin={coin} 
-                        isSelected={false} 
-                        onSelect={() => {}} // Top 10 are just for display/trend reference per instructions
-                    />
-               ))
-            ) : (
-               <p className="text-gray-500 text-sm">No market data available.</p>
-            )}
+        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col h-[400px]">
+          <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">Top 10 Market Pulse</h2>
+              <div className="flex items-center space-x-3 text-sm font-bold">
+                  <span className="text-green-400 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> {upCount} Up</span>
+                  <span className="text-red-400 flex items-center"><TrendingDown className="w-3 h-3 mr-1"/> {downCount} Down</span>
+              </div>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
+            {topCoins.map(coin => <CoinRow key={coin.id} coin={coin} isSelected={false} onSelect={() => {}} />)}
           </div>
         </div>
       </div>
